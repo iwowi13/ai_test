@@ -1,3 +1,21 @@
-<section>
-  <h1>Home</h1>
-</section>
+@if (loading()) {
+  <p class="status">Loading…</p>
+} @else if (error()) {
+  <p class="status error">{{ error() }}</p>
+} @else if (posts().length === 0) {
+  <p class="status">No posts yet.</p>
+} @else {
+  <swiper-container slides-per-view="1" navigation="true" pagination="true" class="carousel">
+    @for (post of posts(); track post.id) {
+      <swiper-slide>
+        <a [routerLink]="['/posts', post.id]" class="slide-link">
+          <img [src]="imageFor(post)" [alt]="post.title" />
+          <div class="overlay">
+            <h2>{{ post.title }}</h2>
+            <p>{{ excerpt(post.body) }}</p>
+          </div>
+        </a>
+      </swiper-slide>
+    }
+  </swiper-container>
+}
