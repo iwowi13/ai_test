@@ -15,6 +15,9 @@ dependencies = [
     "sqlmodel>=0.0.22",
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
+    "passlib[bcrypt]>=1.7",
+    "bcrypt<4.1",  # passlib 1.7.x reads bcrypt.__about__, removed in 4.1+
+    "python-jose[cryptography]>=3.3",
 ]
 
 [project.optional-dependencies]
