@@ -521,12 +521,84 @@ Green light for Phase 3 — test gate is satisfied for Phase 2 (Steps 15–20). 
 
 ---
 
+### 2026-05-21 — Admin UI decisions (Inara)
+**By:** Inara
+**What:**
+- Routes (all behind authGuard): /admin (list), /admin/posts/new (create), /admin/posts/:id/edit (edit)
+- authGuard: functional CanActivateFn, returns UrlTree to /login with returnUrl on anonymous
+- Delete UX: native confirm() — acceptable for learning project, simple and accessible
+- Create flow: POST /posts → if file selected, POST /posts/:id/image. Navigate to /admin on success
+- Edit flow: PATCH /posts/:id then optional POST /posts/:id/image. Cancel returns to /admin
+- Image client-side validation: 5MB + image/* mirrors backend rules to fail fast
+**Why:** Mirrors backend contract from Phase 1. Keeps admin scope small for v0.1.
+
+---
+
+### 2026-05-21 — Step 26 final review verdict (Mal)
+**By:** Mal
+**Verdict:** APPROVED FOR v0.1
+**Scope reviewed:** Phase 3 admin UI (Steps 22–25) + whole-product sanity + docs pass
+
+**What I checked:**
+- `authGuard` (`frontend/src/app/services/auth.guard.ts`) is a functional `CanActivateFn`; returns `true` when authenticated, otherwise `router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } })`. Spec exercises both branches with a writable signal stub for `AuthService.isAuthenticated`. Correct.
+- `app.routes.ts`: `authGuard` registered via `canActivate: [authGuard]` on all three admin routes (`/admin`, `/admin/posts/new`, `/admin/posts/:id/edit`). Every route is `loadComponent: () => import(...)` — lazy-loaded, one chunk per route.
+- `AdminComponent`: list with Edit/Delete; delete uses native `confirm()` (per Inara's documented decision — acceptable for v0.1); 403 vs generic error messages distinguished. Uses signals + `OnPush`.
+- `AdminPostCreateComponent`: reactive form (`fb.nonNullable.group`, `Validators.required`, `Validators.maxLength(200)`); image picker validates `image/*` + 5 MB cap client-side (mirrors backend); submit pipes `create()` → `switchMap` to optional `uploadImage`; `finalize` resets `submitting`; status-code-aware error messages (401/413/400/generic). Matches the LoginComponent reference shape.
+- `AdminPostEditComponent`: parses route id with `Number.isFinite && > 0` guard; pre-fills via `get(id)`; pipes `update()` → `switchMap` to optional `uploadImage`; explicit messaging for 403/404/413/400/generic; Cancel returns to `/admin`.
+- House style: every admin component is `standalone: true`, `ChangeDetectionStrategy.OnPush`, in its own folder with `.ts/.html/.scss/.spec.ts`; no NgModules; no dead code; no unused imports.
+- Whole-product sanity: `npm run build` clean (478.42 kB initial, 129.41 kB transfer); `npm test` 49/49 specs green; `pytest -q` 36/36 backend tests green.
+- Docs: root `README.md`, `backend/README.md`, `frontend/README.md` updated for v0.1 (admin UI no longer "stub", stale "later steps" section removed from backend, test commands added to root).
+
+**Notes (non-blocking, carry-forward to a future version):**
+- Delete UX uses native `confirm()` — fine for v0.1, swap for a styled dialog component when the design system arrives.
+- No optimistic UI on delete — list updates after the 204 returns. Acceptable.
+- `environment.prod.ts` still points to `http://localhost:8000` — flagged earlier; no deploy planned in v0.1, leave the `// TODO` for v0.2.
+- No request-cancellation on route change (Inara flagged in Phase 2 decisions). Still fine for the learning scope.
+- `PATCH /posts/{id}` with no changed fields will still hit the wire. Harmless (refreshes `updated_at`); no UX guard.
+
+**Decision:** APPROVE. Pending River's verdict before tagging `v0.1`.
+
+---
+
+### 2026-05-21 — Step 26 final test verdict (River)
+**By:** River
+**Verdict:** APPROVED FOR v0.1
+**Suites run:** backend pytest, frontend npm test, npm run build
+**Counts:** backend 36/36 passed | frontend 49/49 SUCCESS | build clean (initial 478.42 kB raw / 129.41 kB transfer; per-route lazy chunks)
+
+**Per-component spec review (Phase 3):**
+- `auth.guard.spec.ts` — both branches exercised via writable signal stub: authed → `true`, anon → `createUrlTree(['/login'], { queryParams: { returnUrl: state.url } })` with `returnUrl` asserted. Good.
+- `admin.component.spec.ts` — list render (N rows + empty state), confirm-yes deletes and prunes list, confirm-no skips service, delete-failure keeps row + sets `deleteError`, Edit navigates `['/admin/posts', id, 'edit']`. `PostsService` fully spy'd. Solid.
+- `admin-post-create.component.spec.ts` — required-validator blocks submit, happy create-then-navigate, create+upload happy path, non-image rejected client-side, >5 MB rejected client-side. No real HTTP.
+- `admin-post-edit.component.spec.ts` — pre-fill from `get(id)`, 404 → not-found state, PATCH-only happy path, PATCH + uploadImage happy path, Cancel navigates `/admin`. `ActivatedRoute` mocked. No real HTTP.
+
+**Carry-forwards to v0.2 (non-blocking):**
+- No spec for 401-during-edit / token-expired interceptor flow.
+- No concurrent-edit (two tabs, stale `updated_at`) coverage.
+- No long-title / very-large-body rendering test.
+- No image-upload-failure-after-create rollback test (post stays without image; UX path untested).
+- (Inherited from Mal's notes) native `confirm()` for delete, no optimistic UI, `environment.prod.ts` still localhost, no request-cancel on route change, no-op PATCH still hits wire.
+
+**Decision:** APPROVE.
+
+---
+
 ## Build plan tracking
 
 - **Phase 0 — Foundation (Steps 1–4):** ✅ complete.
 - **Phase 1 — Backend (Steps 5–14):** ✅ **COMPLETE** — Steps 5–14 done, **36/36 tests green**, both gates passed (Mal + River, APPROVED WITH NOTES, 0 blocking issues).
 - **Phase 2 — Frontend public site (Steps 15–21):** ✅ **COMPLETE** — Steps 15–21 done. **31 frontend specs + 36 backend tests green.** Reviewer rejection-lockout rule exercised cleanly (Mal BLOCKED → River applied 1-line fix `61efb0b` → Mal re-verdicted APPROVED WITH NOTES). Phase 3 (admin & polish) cleared.
 - **Phase 3 — Admin & polish (Steps 22–26):** cleared to start — Inara owns Steps 22–25, Mal + River own Step 26.
+
+## 🎉 v0.1 SHIPPED — 2026-05-21
+- All 26 steps complete, tagged `v0.1` at commit `9be6cf2`
+- Backend 36/36 + frontend 49/49 = 85 tests green
+- Phase 1 (backend API): Steps 1-14
+- Phase 2 (public frontend): Steps 15-21
+- Phase 3 (admin UI + release): Steps 22-26
+- Reviewer-lockout rule fired once (Step 21 NG2008), held cleanly
+- Silent-success bug observed 5× total — mitigated by filesystem-check + continuation spawn
+- v0.2 carry-forwards: token-expired flow during admin edit, concurrent edit, long-title rendering, image-upload rollback after post create
 
 ---
 

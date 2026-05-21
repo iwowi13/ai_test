@@ -28,4 +28,17 @@
     - Components that use `RouterLink` in templates: `providers: [provideRouter([])]` is enough — no need for `RouterTestingModule`.
     - Reading `protected`/`private` signals in specs: cast `componentInstance` to a structural type with `as unknown as { ... }`. Ugly but contained, and avoids leaking implementation details to public API.
     - Interceptor: use `provideHttpClient(withInterceptors([authInterceptor]))` together with `provideHttpClientTesting()` so the interceptor runs against the in-memory `HttpTestingController`. Mock `Router`; let `AuthService` be the real one (set `auth.token.set(...)` directly and `spyOn(auth, 'logout')`).
+
+## Learnings — 2026-05-21 Phase 3 admin UI
+
+- **Steps 22–25 (commits `f656a3c`, `764cfa4`, `73ae96d`, `3d96684`):** Built the admin tree behind a guard. Notes worth keeping:
+  - **Functional `authGuard` with returnUrl:** `CanActivateFn` that reads `auth.isAuthenticated()`. If anonymous, return a `UrlTree` to `/login` with `queryParams: { returnUrl: state.url }` — `router.createUrlTree(...)` is the supported way. Don't `router.navigate()` from inside a guard, return the tree.
+  - **Admin route tree:** `/admin` (list), `/admin/posts/new` (create), `/admin/posts/:id/edit` (edit). All three carry `canActivate: [authGuard]`. Lazy-loaded like every other route — keeps the anonymous bundle clean of admin code.
+  - **Reactive forms + image input mirror backend rules:** `FormBuilder.nonNullable.group({ title: [...required, maxLength(200)], body: [...required] })`. File input validates `file.type.startsWith('image/')` + `file.size <= 5 * 1024 * 1024` client-side so we fail fast and don't waste a round-trip — but the backend remains the source of truth (we still handle 400/413 from the server).
+  - **Native `confirm()` for delete:** Acceptable for a learning project — accessible by default, no extra dependency, no modal state to manage. Note for later: swap for a styled dialog when polishing.
+  - **Edit flow ordering — PATCH first, THEN uploadImage:** So a metadata-only edit succeeds even when no new file is picked, and image-upload failure doesn't roll back the text edit. The image step is a `switchMap` that returns `of(post)` when no file is selected.
+  - **Cancel returns to `/admin`:** Plain `router.navigate(['/admin'])` button. Same target as success — admin list is the hub.
+  - **404 on edit:** Same `HttpErrorResponse + status === 404` narrowing as post-detail. Sets a `notFound` signal and renders a "Post not found" message with a back-to-admin link.
+  - **Gotcha — `ActivatedRoute` mock order in TestBed:** When a spec uses both `provideRouter([])` *and* `{ provide: ActivatedRoute, useValue: ... }`, the `ActivatedRoute` override must come **after** `provideRouter` in the providers array, otherwise the router's own empty `ActivatedRoute` wins and `paramMap.get('id')` returns null — the component then skips its data load and every spy stays uncalled. Caught it on step 25; failure mode is silent (no console error, just "spy never called").
+  - **Silent success this drop:** Component code was correct on the first write; only the spec needed the provider-order fix. Build clean, 49/49 specs green.
   - **Gotcha — auth.service spec ordering:** `AuthService` reads `localStorage` in its constructor. Specs that test the "hydrate from storage" path must seed `localStorage` *and then* `TestBed.resetTestingModule()` + reconfigure before `TestBed.inject(AuthService)`, otherwise they get the already-constructed singleton from `beforeEach`.
