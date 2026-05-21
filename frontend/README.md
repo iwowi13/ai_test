@@ -1,59 +1,83 @@
 # Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.26.
+Angular 20 standalone app for the `ai_test` learning blog. Public site has a home page (Swiper carousel of posts), per-post detail page, About page, and a Login page wired to the backend's JWT auth.
 
-## Development server
+Generated with [Angular CLI](https://github.com/angular/angular-cli) 20.3.26.
 
-To start a local development server, run:
+## Public site at a glance
 
-```bash
-ng serve
+- `/` — home page, Swiper carousel with one slide per post (image, title, 500-char body excerpt). Click a slide → post detail.
+- `/posts/:id` — full post (title, date, body, optional image). Unknown id shows a friendly "Post not found".
+- `/about` — short blurb about the project and stack.
+- `/login` — email / password form. On success, redirected to `returnUrl` (default `/`).
+- `/admin` — stub for now; will be the authoring UI.
+- Any other URL → 404 page.
+
+Auth is JWT-based. A functional HTTP interceptor (`src/app/services/auth.interceptor.ts`) stamps `Authorization: Bearer <token>` on every non-auth request and forces logout + redirect to `/login` on any global 401. Token lives in `localStorage` under key `ai_test_jwt`.
+
+## Run the dev server
+
+The frontend talks to the backend on `http://localhost:8000` (see `src/environments/environment.ts`), so start the backend first.
+
+From the repo root:
+
+```powershell
+docker compose up -d        # Postgres + backend on :8000
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Then, from `frontend/`:
 
-## Code scaffolding
+```powershell
+npm install                 # first time only
+npm start                   # ng serve on http://localhost:4200
+```
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Open `http://localhost:4200/`. Edits to source files auto-reload.
 
-```bash
+## Run the unit tests
+
+From `frontend/`:
+
+```powershell
+npm test -- --watch=false --browsers=ChromeHeadless
+```
+
+This is the pre-commit gate — it must be green before every commit. Uses Karma + Jasmine + Chrome Headless. Spec count grows as features land.
+
+## Build
+
+```powershell
+npm run build               # production build into dist/
+```
+
+## Project layout (high level)
+
+```
+src/app/
+  app.config.ts             # bootstrap providers (router, http, interceptor)
+  app.routes.ts             # lazy-loaded routes
+  components/
+    home/                   # carousel of posts
+    post-detail/            # single post + 404 branch
+    about/
+    login/                  # reactive form + JWT login
+    admin/                  # placeholder
+    page-not-found/         # 404 catch-all
+  services/
+    api-config.service.ts   # apiBase + buildUrl()
+    auth.service.ts         # login/register/logout + token signal
+    auth.interceptor.ts     # bearer header + global 401-logout
+    posts.service.ts        # snake_case → camelCase at the boundary
+  models/                   # camelCase TypeScript interfaces
+src/environments/           # apiBase per env
+public/placeholder.svg      # fallback image for posts without one
+```
+
+## Scaffolding (Angular CLI)
+
+```powershell
 ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
 ng generate --help
 ```
 
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+For more on the CLI: <https://angular.dev/tools/cli>.
