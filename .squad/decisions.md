@@ -334,12 +334,199 @@ Green light for Phase 2 — backend test gate is **open**.
 
 ---
 
+### 2026-05-21 — Frontend decisions (Inara)
+
+Decisions made while building the public site (services, page-not-found, home/carousel, post-detail, about, login + interceptor). Recording here so Mal/River can sanity-check them before the Step 21 gate.
+
+#### Carousel: `swiper-element` web component
+
+- **Library:** `swiper` (in `frontend/package.json` — version `^12.1.4` at time of writing). Imported as `swiper/element/bundle`, registered **once** in `main.ts` *before* `bootstrapApplication(...)`.
+- **Why the web-component build, not the Angular module:** Swiper's official Angular wrapper has been deprecated for a while; the web-component (`<swiper-container>` / `<swiper-slide>`) is the supported path. Works with Angular standalone components by declaring `schemas: [CUSTOM_ELEMENTS_SCHEMA]` on any component whose template uses the tag.
+- **Test impact:** Specs for any component that templates `<swiper-container>` must also set `schemas: [CUSTOM_ELEMENTS_SCHEMA]` in `TestBed.configureTestingModule({...})`, otherwise Angular's template compiler errors on the unknown element.
+
+#### Token storage: `localStorage` under key `ai_test_jwt`
+
+- Token is read from `localStorage` in `AuthService`'s constructor and stored in a `signal<string | null>`. Hydrating from storage means a page refresh keeps the user logged in.
+- All `localStorage` reads/writes are wrapped in `try/catch` because some browser modes (private windows, tests with storage cleared mid-flight) can throw on access.
+- `logout()` clears both the signal and `localStorage`.
+- **If we ever need XSS-resistant storage:** revisit and consider httpOnly cookie + same-site protections. For a learning project this is fine.
+
+#### snake_case → camelCase mapping in the service layer
+
+- Backend returns `author_id`, `created_at`, `updated_at`, `access_token`, etc.
+- We map to camelCase **once**, at the service boundary (`posts.service.ts`, `auth.service.ts`), via tiny `mapPost` / `mapUser` functions and typed `PostOut` / `UserOut` interfaces that live alongside the service.
+- The rest of the app (models in `frontend/src/app/models`, components, templates) only ever sees camelCase. Keeps templates clean (`{{ post.createdAt | date }}`) and means a future API rename only touches the service file.
+- **Exception:** `TokenResponse` keeps `access_token` because the service reads it once into the token signal and discards the shape immediately.
+
+#### Placeholder image: inline SVG at `/placeholder.svg`
+
+- File: `frontend/public/placeholder.svg`, served at `/placeholder.svg` by Angular's dev server / build.
+- A neutral grey rectangle with the text "No image". Inline SVG = no extra network round-trip, no broken-image icon if the file is missing.
+- `HomeComponent.imageFor(post)` returns `apiConfig.buildUrl(post.image)` if `post.image` is truthy, otherwise the placeholder path. Keeps the carousel slide height/layout stable for image-less posts.
+
+#### Auth interceptor: global 401-logout
+
+- Functional `HttpInterceptorFn` in `frontend/src/app/services/auth.interceptor.ts`, registered via `provideHttpClient(withInterceptors([authInterceptor]))` in `app.config.ts`.
+- **Header stamping:** Adds `Authorization: Bearer <token>` to every outgoing request **except** `/auth/login` and `/auth/register`. (Sending a bearer to those endpoints is harmless but meaningless.)
+- **401 handling:** On `HttpErrorResponse` with `status === 401` from a non-auth endpoint *and* with a token currently set, calls `auth.logout()` and `router.navigate(['/login'])`. Then re-throws the error so component-level subscribers still see it.
+- **Why skip `/auth/login` for the 401 logic:** A failed login is a 401, and we don't want a failed login to also bounce the user to `/login` — they're already there, and `logout()` on an empty session is just noise.
+- **Implication for `LoginComponent`:** Login errors surface to the component's `error` callback unchanged; the component shows "Invalid credentials." on 401, generic message otherwise.
+
+#### Things Mal/River should know for Step 21 (admin / authoring)
+
+- **`AuthService.isAuthenticated`** is a `computed` signal — use it directly in templates and route guards. Don't subscribe; just call it.
+- **`PostsService` is already wired** for `create`, `update`, `delete`, and `uploadImage(id, file)`. `uploadImage` uses `FormData` with field name `file`; the interceptor will stamp the JWT automatically (no need to fiddle with `Content-Type` — let the browser set the multipart boundary).
+- **Auth guard pattern (not yet built):** Probably a `CanMatch` function on the `admin` route that reads `inject(AuthService).isAuthenticated()`. If false, redirect to `/login?returnUrl=/admin`. The login component already honours `returnUrl`.
+- **Form patterns:** `LoginComponent` is the reference — `FormBuilder.nonNullable.group(...)`, signal-based `submitting` and `errorMsg`, `finalize` in the subscribe pipe to always reset `submitting`. Reuse this shape for the post editor form.
+- **No SSR, no zoneless.** Stick to zone-based change detection and `ChangeDetectionStrategy.OnPush` on new components.
+- **Test command (must stay green before every commit):** `cd frontend && npm test -- --watch=false --browsers=ChromeHeadless`. Current spec count after Step 20: **31**.
+
+#### Open / deferred
+
+- No global error boundary yet — component-level error signals are the only fallback. Fine for now.
+- No HTTP retry. Not needed for this scope.
+- No request-cancellation on route change (Angular's HttpClient + the way components subscribe in `ngOnInit` means a fast navigation could double-fire). Acceptable for a learning project.
+
+---
+
+### 2026-05-21 — Step 21 frontend review verdict (Mal)
+
+**Date:** 2026-05-21
+**Reviewing:** Phase 2 public frontend (Steps 15–20), commits `80dc29a..3b62db9`
+**Verdict:** BLOCKED (initial) → APPROVED WITH NOTES (after `61efb0b` fix)
+
+#### Findings
+
+**Scope discipline — clean.**
+- No state library, no SSR, no PWA, no i18n, no pagination, no search, no CSS framework. Plain `HttpClient` + signals + reactive forms, exactly as planned.
+- Swiper is the only added runtime dep (`^12.1.4`) — agreed-upon carousel slot.
+- `AdminComponent` is a true placeholder ("admin features land in Phase 3") — no Phase 3 work has leaked into Phase 2.
+
+**House style — mostly on point.**
+- Feature-based folders under [frontend/src/app/components/](frontend/src/app/components) with `home`, `post-detail`, `about`, `login`, `admin`, `page-not-found`. `page-not-found` wired as the `**` route in [app.routes.ts](frontend/src/app/app.routes.ts#L34-L40). ✓
+- All components are `standalone: true`, `ChangeDetectionStrategy.OnPush` where they hold state, and use the new control flow (`@if` / `@for`) and signals throughout. No NgModules, no `*ngIf`. ✓
+- Models live in [frontend/src/app/models/](frontend/src/app/models), services in [frontend/src/app/services/](frontend/src/app/services), components self-contained with `.ts`/`.html`/`.scss`/`.spec.ts` — **except `AdminComponent` (see Blocking #1)**.
+
+**API contract alignment — accurate.**
+- `PostOut` interface in [posts.service.ts](frontend/src/app/services/posts.service.ts#L10-L20) matches Kaylee's contract field-for-field (`id, title, slug, body, image, author_id, created_at, updated_at`).
+- snake_case → camelCase mapping is done **once**, at the service boundary, via `mapPost` / `mapUser`. The rest of the app only ever sees the camelCase [`Post`](frontend/src/app/models/post.ts) / [`User`](frontend/src/app/models/user.ts) shapes. Clean.
+- Image path is correctly prefixed with `apiBase` via [`ApiConfigService.buildUrl`](frontend/src/app/services/api-config.service.ts) in both [home.component.ts#imageFor](frontend/src/app/components/home/home.component.ts) and [post-detail.component.html](frontend/src/app/components/post-detail/post-detail.component.html). Image hits FastAPI's `/uploads` static mount, not the Angular dev server.
+- `uploadImage` posts `FormData` with field name `file` — matches the multipart contract.
+- `TokenResponse` keeps `access_token` deliberately (single read, then discarded) — documented in Inara's decisions, fine.
+
+**Auth flow — sound.**
+- JWT stored in `localStorage` under `ai_test_jwt`, hydrated into a signal in [`AuthService`](frontend/src/app/services/auth.service.ts) constructor → page refresh keeps the user logged in.
+- All `localStorage` access is `try/catch`-wrapped (private-mode browsers, tests).
+- [`authInterceptor`](frontend/src/app/services/auth.interceptor.ts) stamps `Authorization: Bearer` on every outbound request **except** `/auth/login` and `/auth/register`. On `401` from a non-auth endpoint with a current token, it calls `auth.logout()` then `router.navigate(['/login'])` and re-throws so component subscribers still see the error.
+- The skip-auth-endpoint guard on the 401 branch correctly prevents a failed login from also bouncing the user to `/login` (they're already there) — good thinking.
+- `isAuthenticated` is a `computed` signal driven from the token signal — usable directly in templates ([app.html](frontend/src/app/app.html#L13-L20)).
+
+**Lazy-loading — correct.**
+- Every route uses `loadComponent: () => import(...).then(m => m.X)`. No top-level imports of feature components from the routes file. Each route becomes its own chunk.
+- Single concern: `admin` route currently has no `canMatch` guard. Acceptable for Phase 2 (Inara's decisions document call out the guard as a Phase 3 task), and the placeholder leaks nothing.
+
+**Swiper — integrated correctly for Phase 2, has a prod-build risk.**
+- `register` called **once** in [main.ts](frontend/src/main.ts) before `bootstrapApplication`. ✓
+- `CUSTOM_ELEMENTS_SCHEMA` is declared on [home.component.ts](frontend/src/app/components/home/home.component.ts#L21) and (per Inara's notes) in the matching spec's `TestBed`. ✓
+- Placeholder strategy is `frontend/public/placeholder.svg`, served as a static asset by the Angular build (assets config in [angular.json](frontend/angular.json#L25-L30)). Stable layout when a post lacks an image.
+- See **Blocking #1** for the prod-build issue.
+
+**Accessibility — good enough for Phase 2, two small gaps.**
+- All `<img>` elements have meaningful `alt` text (`post.title`).
+- Semantic landmarks present: `<header class="topbar">`, `<nav>`, `<main class="content">`, `<footer>`, `<article class="post">`, `<section>` on auxiliary pages.
+- Login form: paired `<label>` per input, `autocomplete="email"` / `autocomplete="current-password"`, validation errors live near the field, top-level error has `role="alert"`.
+- Nits in **Non-blocking** below.
+
+#### Blocking issues (initial review)
+
+1. **Production build is broken — missing `admin.component.scss`.**
+   [admin.component.ts](frontend/src/app/components/admin/admin.component.ts#L7) declares `styleUrl: './admin.component.scss'`, but that file does not exist on disk. `npm run build` (default config = production) fails with **NG2008: Could not find stylesheet file './admin.component.scss'**. Karma doesn't trip on this because the admin component isn't pulled into any spec, but `ng build` does. Phase 2 cannot be tagged "done" with a red prod build.
+   **Fix (one-line):** either create an empty `frontend/src/app/components/admin/admin.component.scss` to match the rest of the house style, or drop the `styleUrl` line entirely. Match what the other placeholder pages (about, page-not-found) do.
+
+#### Non-blocking notes
+
+1. **`AdminComponent` lacks a spec file.** Every other component has one. Phase 3 will rewrite this component anyway, but add a trivial `admin.component.spec.ts` when you do — keeps the rule "every component has a spec" intact.
+2. **`environment.prod.ts` has `apiBase: 'http://localhost:8000'`.** Identical to dev. The `fileReplacements` plumbing in [angular.json](frontend/angular.json#L40-L46) works, but the prod value is a placeholder. Out of scope for v0.1 (no deploy planned), worth a single `// TODO: real prod URL` comment so it isn't forgotten.
+3. **Carousel keyboard support.** `<swiper-container>` has `navigation="true"` and `pagination="true"` but no `keyboard="true"` / `a11y="true"` enabled. Swiper supports both — flipping them on is one attribute each and gets you arrow-key nav + screen-reader announcements for free. Phase 2 acceptable, do it before v0.1.
+4. **`PostsService.delete` returns `Observable<void>` from `this.http.delete<void>(…)`.** Backend returns `204 No Content` with empty body — Angular's `HttpClient` will resolve fine, but the typed return drops the `Response` envelope. No bug today, just be aware when Phase 3 admin wants to confirm a delete happened (status code lives on the `HttpResponse` envelope, not in the next handler).
+5. **No request cancellation on route change.** Inara already flagged this in her decisions doc. Acceptable for the learning scope.
+6. **`PostDetailComponent` validates `id` with `Number.isFinite(id) && id > 0`.** Good. Note that the backend uses positive integer ids, so this is correct; just don't widen the model to allow string slugs in URLs without revisiting this guard.
+7. **`PostCreate.body` is typed `string` (required) in the frontend model**, but the backend defaults it to `""` (Kaylee, Step 14 note #1). No bug — the frontend will always send a value — but if Phase 3's editor wants a "title-only quick draft", the model already supports it on the server side.
+
+#### Re-review after River's fix
+
+**Fix commit:** `61efb0b` (River applied per rejection-lockout rule — Inara could not self-revise)
+
+Verified:
+- `admin.component.ts` no longer references the missing `.scss`
+- `npm run build` clean (`dist/frontend` produced)
+- `npm test` still 31/31 green
+
+**Revised verdict:** APPROVED WITH NOTES (zero blocking issues). Phase 2 public frontend cleared. Inara unblocked for Phase 3 (Steps 22–25 — admin authGuard, list, create, edit). The non-blocking notes above remain open for Inara's discretion.
+
+#### Handoff to Inara for Phase 3
+
+Once the missing `admin.component.scss` is added and prod build is green, Phase 2 is done. For Phase 3, the patterns to lean on are already in place: `AuthService.isAuthenticated()` is a `computed` signal you can call from a functional `CanMatch` guard (`inject(AuthService).isAuthenticated() || (inject(Router).parseUrl('/login?returnUrl=/admin'))`); the [`LoginComponent`](frontend/src/app/components/login/login.component.ts) honours `returnUrl` already, so the round-trip will Just Work. Reuse the [`LoginComponent`](frontend/src/app/components/login/login.component.ts) form shape (`FormBuilder.nonNullable.group`, signal-based `submitting` + `errorMsg`, `finalize` to reset) for the post editor. `PostsService.create/update/delete/uploadImage` is already wired and the interceptor will stamp the JWT; let the browser set the multipart boundary for image upload (don't set `Content-Type` manually). When you split admin into a list/create/edit set, prefer nested children under the `admin` route with the guard on the parent so the JWT check runs once. Keep `ChangeDetectionStrategy.OnPush` and signals everywhere — no `BehaviorSubject` regressions, please.
+
+---
+
+### 2026-05-21 — Step 21 frontend test verdict (River)
+
+**Date:** 2026-05-21
+**Suite result:** 31 specs, all passed (Karma + ChromeHeadless 148, ~0.6s test runtime, 3.2s build)
+**Verdict:** APPROVED
+
+#### Coverage matrix
+
+| Unit | Tested (happy + failure) | Gaps (non-blocking) |
+|------|--------------------------|---------------------|
+| `AuthService` | logged-out start, login persists token+signal, logout clears, `/auth/me` snake→camel mapping, constructor hydrates from localStorage | login error path doesn't clear token (asserted indirectly); no test for `loadCurrentUser` error |
+| `PostsService` | `list()` mapping, `get(id)` mapping, `create()` body + mapping, `uploadImage()` multipart field name | no `update()` / `delete()` tests (admin work — Phase 3); no error-path test |
+| `authInterceptor` | adds Bearer for protected URL, skips `/auth/login` and `/auth/register`, 401 on protected → logout+navigate, 401 on `/auth/login` → no logout/redirect | empty-string token (falsy already, but not explicit); 401 on `/auth/register`; non-401 errors pass through untouched |
+| `LoginComponent` | invalid form is a no-op, success → `/`, success → `returnUrl`, 401 → "Invalid credentials.", 500 → generic message | double-submit guard (`submitting()` true → submit ignored — not implemented in component, so not a gap, just a future hardening); template-level rendering of the error / disabled button |
+| `App` (shell nav) | Home+About always shown, Login shown when logged out, Admin+Logout shown when logged in, Logout button calls `authService.logout` | router navigation after logout (component doesn't navigate itself — fine) |
+| `HomeComponent` | renders one `<swiper-slide>` per post, empty state shows "No posts yet." and no `<swiper-container>`, `imageFor()` builds API URL vs falls back to placeholder | `PostsService.list()` error path (component just leaves `posts()` empty — worth one test) |
+| `PostDetailComponent` | success renders title, 404 sets `notFound` and renders message, non-404 renders generic error | non-numeric / missing `:id` route param (component currently parses `Number(...)` — would call `get(NaN)`); image rendering when `image` is null |
+| `AboutComponent` | renders heading + at least one `<p>` | — |
+| `PageNotFoundComponent` | renders `404` heading + link to `/` | — |
+
+#### Mocking + isolation check
+
+- All HTTP goes through `HttpTestingController` (services) or `jasmine.createSpyObj` of `PostsService` / `AuthService` (components). No real network.
+- `localStorage` is reset in `beforeEach` / `afterEach` for `AuthService` and `authInterceptor` specs — no cross-test leakage.
+- `App` spec uses `TestBed.resetTestingModule()` inside its own `setup()` helper so the two auth states don't bleed.
+- `AuthService` hydration spec correctly resets the TestBed after seeding `localStorage`, so the singleton is constructed against the seeded state.
+- `httpMock.verify()` is called in `afterEach` everywhere it's used — no dangling expectations.
+- `provideRouter([])` is used in component specs that need `RouterLink` (App, Home, PostDetail, PageNotFound). `CUSTOM_ELEMENTS_SCHEMA` is used in `HomeComponent` for `<swiper-container>` / `<swiper-slide>`. Both correct.
+- `Router` is stubbed with `jasmine.createSpyObj` in interceptor + login specs — no real navigation triggered.
+- No `fakeAsync` / `tick` needed because services return synchronous `of(...)` / `throwError(...)` in component tests and `HttpTestingController.flush()` is synchronous in service tests.
+
+#### Blocking gaps
+
+None.
+
+#### Suggested additional tests (non-blocking)
+
+1. `authInterceptor`: assert non-401 errors are re-thrown without calling `logout()` or `router.navigate()` (covers the `err.status !== 401` branch).
+2. `authInterceptor`: 401 on `/auth/register` does not trigger logout (parallel to the `/auth/login` case).
+3. `PostDetailComponent`: route param `id` missing / non-numeric — currently the component would call `get(NaN)`; either assert behavior or add a guard.
+4. `HomeComponent`: `PostsService.list()` errors → component still renders the empty/error state (decide which) instead of crashing.
+5. `LoginComponent`: while `submitting()` is `true`, a second `submit()` call is ignored (requires a small guard in the component — flag this to Inara as a Phase 3 nicety, not a Step 21 blocker).
+6. `AuthService`: `loadCurrentUser()` error path leaves `currentUser()` null.
+7. `PostsService`: error path (e.g. `get(id)` returns 404) propagates `HttpErrorResponse` to the subscriber.
+
+#### Handoff
+
+Green light for Phase 3 — test gate is satisfied for Phase 2 (Steps 15–20). Mal's architecture review is the only remaining concurrent check.
+
+---
+
 ## Build plan tracking
 
 - **Phase 0 — Foundation (Steps 1–4):** ✅ complete.
 - **Phase 1 — Backend (Steps 5–14):** ✅ **COMPLETE** — Steps 5–14 done, **36/36 tests green**, both gates passed (Mal + River, APPROVED WITH NOTES, 0 blocking issues).
-- **Phase 2 — Frontend public site (Steps 15–21):** cleared to start — Inara owns.
-- **Phase 3 — Admin & polish (Steps 22–26):** not started.
+- **Phase 2 — Frontend public site (Steps 15–21):** ✅ **COMPLETE** — Steps 15–21 done. **31 frontend specs + 36 backend tests green.** Reviewer rejection-lockout rule exercised cleanly (Mal BLOCKED → River applied 1-line fix `61efb0b` → Mal re-verdicted APPROVED WITH NOTES). Phase 3 (admin & polish) cleared.
+- **Phase 3 — Admin & polish (Steps 22–26):** cleared to start — Inara owns Steps 22–25, Mal + River own Step 26.
 
 ---
 
