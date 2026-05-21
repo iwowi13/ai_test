@@ -31,6 +31,7 @@ def test_posts_table_exists() -> None:
         "author_id",
         "created_at",
         "updated_at",
+        "image",
     ]
 
 

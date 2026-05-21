@@ -18,6 +18,7 @@ class Post(SQLModel, table=True):
     title: str = Field(max_length=200)
     slug: str = Field(index=True, unique=True, max_length=200)
     body: str = Field(default="")
+    image: str | None = Field(default=None, max_length=255)
     author_id: int = Field(foreign_key="users.id", index=True)
     created_at: datetime = Field(default_factory=_utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=_utcnow, nullable=False)

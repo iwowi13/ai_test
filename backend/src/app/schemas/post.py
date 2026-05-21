@@ -12,6 +12,7 @@ class PostOut(BaseModel):
     title: str
     slug: str
     body: str
+    image: str | None = None
     author_id: int
     created_at: datetime
     updated_at: datetime
