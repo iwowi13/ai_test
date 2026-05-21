@@ -37,15 +37,20 @@ pytest
 ```
 backend/
 ├── pyproject.toml          # deps + tooling (ruff, pytest)
-├── .env.example            # copy to repo-root .env
+├── alembic.ini             # migrations config
+├── alembic/versions/       # users, posts, post.image migrations
 ├── src/
 │   └── app/
-│       ├── __init__.py
-│       ├── config.py       # Settings (pydantic-settings) + get_settings()
-│       └── main.py         # create_app() + FastAPI instance
-└── tests/
-    ├── __init__.py
-    └── test_health.py
+│       ├── config.py       # Settings (pydantic-settings)
+│       ├── db.py           # engine + session
+│       ├── deps.py         # get_current_user dependency
+│       ├── security.py     # password hashing + JWT helpers
+│       ├── main.py         # create_app() + /uploads static mount
+│       ├── models/         # User, Post (SQLModel)
+│       ├── schemas/        # Pydantic request/response shapes
+│       └── routes/         # auth + posts routers
+├── tests/                  # pytest suite (36 tests)
+└── uploads/                # runtime image storage (gitignored)
 ```
 
 We use the **`src/` layout**: source lives under `src/app/`, and the package
@@ -68,12 +73,15 @@ mirrors the root one). Variables:
 | `JWT_ALGORITHM` | JWT signing algorithm | `HS256` |
 | `JWT_EXPIRE_MINUTES` | Token lifetime | `60` |
 
-## Where things will go (later steps)
+## API surface
 
-- `src/app/models/` — SQLModel tables (`User`, `Post`) — step 6–7
-- `src/app/routes/` — auth + posts routers — step 9+
-- `src/app/auth/` — password hashing + JWT helpers — step 8
-- `alembic/` — migrations — step 5
+See the Posts and Auth API contracts in `../.squad/decisions.md`. Highlights:
+
+- `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
+- `GET /posts`, `GET /posts/{id}` — public reads
+- `POST/PATCH/DELETE /posts` — author-only writes
+- `POST /posts/{id}/image` — multipart upload (5 MB cap, `image/*` only)
+- `/uploads/*` — FastAPI static mount serving uploaded images
 
 ## Contributing
 

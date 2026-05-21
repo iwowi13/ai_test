@@ -1,17 +1,21 @@
 # Frontend
 
-Angular 20 standalone app for the `ai_test` learning blog. Public site has a home page (Swiper carousel of posts), per-post detail page, About page, and a Login page wired to the backend's JWT auth.
+Angular 20 standalone app for the `ai_test` learning blog. Public site has a home page (Swiper carousel of posts), per-post detail page, About page, Login, and a login-gated admin UI for managing posts.
 
 Generated with [Angular CLI](https://github.com/angular/angular-cli) 20.3.26.
 
-## Public site at a glance
+## Site at a glance
 
 - `/` — home page, Swiper carousel with one slide per post (image, title, 500-char body excerpt). Click a slide → post detail.
 - `/posts/:id` — full post (title, date, body, optional image). Unknown id shows a friendly "Post not found".
 - `/about` — short blurb about the project and stack.
 - `/login` — email / password form. On success, redirected to `returnUrl` (default `/`).
-- `/admin` — stub for now; will be the authoring UI.
+- `/admin` — **login-gated** posts list with Edit + Delete (native `confirm`).
+- `/admin/posts/new` — create post (title, body, optional image upload).
+- `/admin/posts/:id/edit` — edit post (pre-filled, optional image replace).
 - Any other URL → 404 page.
+
+All `/admin/**` routes are protected by `authGuard` (functional `CanActivateFn` in `services/auth.guard.ts`), which redirects anonymous users to `/login?returnUrl=<original>`.
 
 Auth is JWT-based. A functional HTTP interceptor (`src/app/services/auth.interceptor.ts`) stamps `Authorization: Bearer <token>` on every non-auth request and forces logout + redirect to `/login` on any global 401. Token lives in `localStorage` under key `ai_test_jwt`.
 
@@ -61,12 +65,15 @@ src/app/
     post-detail/            # single post + 404 branch
     about/
     login/                  # reactive form + JWT login
-    admin/                  # placeholder
+    admin/                  # posts list with Edit + Delete
+    admin-post-create/      # create post + optional image upload
+    admin-post-edit/        # edit post + optional image replace
     page-not-found/         # 404 catch-all
   services/
     api-config.service.ts   # apiBase + buildUrl()
     auth.service.ts         # login/register/logout + token signal
     auth.interceptor.ts     # bearer header + global 401-logout
+    auth.guard.ts           # functional CanActivateFn for /admin/**
     posts.service.ts        # snake_case → camelCase at the boundary
   models/                   # camelCase TypeScript interfaces
 src/environments/           # apiBase per env
