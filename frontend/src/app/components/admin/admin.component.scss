@@ -1,0 +1,61 @@
+.admin {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+
+  .admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+
+    h1 {
+      margin: 0;
+    }
+  }
+
+  .status {
+    margin: 1rem 0;
+    color: #555;
+
+    &.error {
+      color: #b00020;
+    }
+  }
+
+  .posts {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #e5e5e5;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th.actions,
+    td.actions {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    td.actions button + button {
+      margin-left: 0.5rem;
+    }
+  }
+
+  button.primary {
+    background: #1f6feb;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button.danger {
+    color: #b00020;
+  }
+}

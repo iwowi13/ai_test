@@ -32,6 +32,22 @@ export const routes: Routes = [
       import('./components/admin/admin.component').then((m) => m.AdminComponent),
   },
   {
+    path: 'admin/posts/new',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./components/admin-post-create/admin-post-create.component').then(
+        (m) => m.AdminPostCreateComponent,
+      ),
+  },
+  {
+    path: 'admin/posts/:id/edit',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./components/admin-post-edit/admin-post-edit.component').then(
+        (m) => m.AdminPostEditComponent,
+      ),
+  },
+  {
     path: '**',
     loadComponent: () =>
       import('./components/page-not-found/page-not-found.component').then(

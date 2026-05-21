@@ -1,4 +1,42 @@
-<section>
-  <h1>Admin</h1>
-  <p>Placeholder — admin features land in Phase 3.</p>
+<section class="admin">
+  <header class="admin-header">
+    <h1>Posts</h1>
+    <button type="button" class="primary" (click)="newPost()">New post</button>
+  </header>
+
+  @if (loading()) {
+    <p class="status">Loading…</p>
+  } @else if (error()) {
+    <p class="status error">{{ error() }}</p>
+  } @else if (posts().length === 0) {
+    <p class="status">
+      No posts yet. <a routerLink="/admin/posts/new">Create the first one →</a>
+    </p>
+  } @else {
+    @if (deleteError(); as msg) {
+      <p class="status error">{{ msg }}</p>
+    }
+    <table class="posts">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Updated</th>
+          <th class="actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (post of posts(); track post.id) {
+          <tr>
+            <td>{{ post.title }}</td>
+            <td>{{ post.updatedAt | date: 'medium' }}</td>
+            <td class="actions">
+              <button type="button" (click)="edit(post)">Edit</button>
+              <button type="button" class="danger" (click)="delete(post)">Delete</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
+
