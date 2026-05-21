@@ -35,4 +35,9 @@ Thumbs.db
 
 # Uploads (runtime data, not source)
 backend/uploads/
+!backend/uploads/.gitkeep
+
+# Temp commit message files
+*_commit-msg-*.txt
+_commit-msg-*.txt
 

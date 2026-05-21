@@ -14,7 +14,7 @@ from sqlmodel import Session, delete
 from app.db import get_engine
 from app.main import create_app
 from app.models.user import User
-from app.security import decode_access_token
+from app.security import create_access_token, decode_access_token
 
 
 @pytest.fixture
@@ -113,4 +113,44 @@ def test_login_unknown_email(client: TestClient) -> None:
         "/auth/login",
         json={"email": f"missing-{uuid4()}@example.com", "password": "whatever1"},
     )
+    assert resp.status_code == 401
+
+
+def test_me_success(client: TestClient, fresh_email: str) -> None:
+    password = "supersecret"
+    reg = client.post("/auth/register", json={"email": fresh_email, "password": password})
+    assert reg.status_code == 201
+    user_id = reg.json()["id"]
+
+    login = client.post("/auth/login", json={"email": fresh_email, "password": password})
+    token = login.json()["access_token"]
+
+    resp = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == user_id
+    assert body["email"] == fresh_email
+
+
+def test_me_no_token(client: TestClient) -> None:
+    resp = client.get("/auth/me")
+    assert resp.status_code == 401
+
+
+def test_me_bad_token(client: TestClient) -> None:
+    resp = client.get("/auth/me", headers={"Authorization": "Bearer not-a-real-jwt"})
+    assert resp.status_code == 401
+
+
+def test_me_expired_token(client: TestClient, fresh_email: str) -> None:
+    # Register so the user exists; otherwise we couldn't tell expired from missing.
+    reg = client.post(
+        "/auth/register",
+        json={"email": fresh_email, "password": "supersecret"},
+    )
+    assert reg.status_code == 201
+    user_id = reg.json()["id"]
+
+    expired = create_access_token(subject=str(user_id), expires_minutes=-1)
+    resp = client.get("/auth/me", headers={"Authorization": f"Bearer {expired}"})
     assert resp.status_code == 401

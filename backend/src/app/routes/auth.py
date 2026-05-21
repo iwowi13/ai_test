@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.db import get_session
+from app.deps import get_current_user
 from app.models.user import User
 from app.schemas.auth import LoginIn, RegisterIn, TokenOut, UserOut
 from app.security import create_access_token, hash_password, verify_password
@@ -47,3 +48,9 @@ def login(body: LoginIn, session: Session = Depends(get_session)) -> TokenOut:
         )
 
     return TokenOut(access_token=create_access_token(subject=str(user.id)))
+
+
+@router.get("/me", response_model=UserOut)
+def me(current_user: User = Depends(get_current_user)) -> User:
+    """Return the authenticated user (JWT-gated)."""
+    return current_user
