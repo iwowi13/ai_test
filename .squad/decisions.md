@@ -107,6 +107,60 @@ Tests must pass before each commit. River is the gate.
 **What:** Repo scaffolded (`backend/`, `frontend/` placeholders), root `README.md`, `.gitignore`, `.env.example`, `docker-compose.yml` for Postgres. Committed.
 **Verify:** `docker compose up -d` starts Postgres; folders exist; tree clean after commit.
 
+### 2026-05-20 — Auth endpoints API contract (Kaylee)
+
+**Owner:** Kaylee
+**For:** Inara (frontend)
+
+#### `POST /auth/register`
+
+Request body (JSON):
+```json
+{ "email": "user@example.com", "password": "min8chars" }
+```
+
+Success — `201 Created`:
+```json
+{ "id": 1, "email": "user@example.com", "created_at": "2026-05-20T20:00:00Z" }
+```
+
+The password (plain or hashed) is **never** returned.
+
+Errors:
+- `409 Conflict` — email already registered (`{"detail": "Email already registered"}`).
+- `422 Unprocessable Entity` — Pydantic validation failure (bad email format, password shorter than 8 chars, missing field).
+
+#### `POST /auth/login`
+
+Request body (JSON):
+```json
+{ "email": "user@example.com", "password": "min8chars" }
+```
+
+Success — `200 OK`:
+```json
+{ "access_token": "<JWT>", "token_type": "bearer" }
+```
+
+Errors:
+- `401 Unauthorized` — unknown email **or** wrong password (same response for both, by design — no user enumeration).
+- `422 Unprocessable Entity` — malformed body.
+
+#### Token usage (forward-looking)
+
+- The `access_token` is a JWT signed HS256 with the server's `JWT_SECRET`. Claims: `sub` = user id (string), `iat`, `exp`. Default lifetime: `JWT_EXPIRE_MINUTES` (see backend `.env`).
+- For future protected endpoints, send it in the `Authorization` header:
+  ```
+  Authorization: Bearer <access_token>
+  ```
+- Frontend should treat the token as opaque — don't decode it client-side for auth decisions.
+
+#### Not yet built
+
+`GET /auth/me` is **Step 10** — not available yet.
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
