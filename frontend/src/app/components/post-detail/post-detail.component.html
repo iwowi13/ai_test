@@ -1,3 +1,19 @@
-<section>
-  <h1>Post detail</h1>
-</section>
+@if (loading()) {
+  <p class="status">Loading…</p>
+} @else if (notFound()) {
+  <section class="not-found">
+    <h1>Post not found</h1>
+    <a routerLink="/">Back home</a>
+  </section>
+} @else if (error()) {
+  <p class="status error">{{ error() }}</p>
+} @else if (post(); as p) {
+  <article class="post">
+    @if (p.image) {
+      <img [src]="apiConfig.buildUrl(p.image)" [alt]="p.title" />
+    }
+    <h1>{{ p.title }}</h1>
+    <p class="date">{{ p.createdAt | date: 'longDate' }}</p>
+    <div class="body">{{ p.body }}</div>
+  </article>
+}
