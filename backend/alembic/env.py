@@ -11,6 +11,8 @@ from alembic import context
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.config import get_settings  # noqa: E402
+from sqlmodel import SQLModel  # noqa: E402
+import app.models  # noqa: F401, E402  -- registers tables on SQLModel.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,8 +28,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# Imported lazily once models exist (Step 6 onward); kept None for now.
-target_metadata = None
+target_metadata = SQLModel.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
