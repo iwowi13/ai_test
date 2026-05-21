@@ -1,0 +1,49 @@
+<section class="editor">
+  <header class="editor-header">
+    <h1>New post</h1>
+    <a routerLink="/admin">← Back to admin</a>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <label class="field">
+      <span>Title</span>
+      <input type="text" formControlName="title" maxlength="200" autocomplete="off" />
+      @if (form.controls.title.touched && form.controls.title.errors?.['required']) {
+        <small class="field-error">Title is required.</small>
+      }
+      @if (form.controls.title.errors?.['maxlength']) {
+        <small class="field-error">Title is too long (200 max).</small>
+      }
+    </label>
+
+    <label class="field">
+      <span>Body</span>
+      <textarea formControlName="body" rows="10"></textarea>
+      @if (form.controls.body.touched && form.controls.body.errors?.['required']) {
+        <small class="field-error">Body is required.</small>
+      }
+    </label>
+
+    <label class="field">
+      <span>Image (optional, 5 MB max)</span>
+      <input type="file" accept="image/*" (change)="onFileSelected($event)" />
+      @if (selectedFileName(); as name) {
+        <small class="field-hint">Selected: {{ name }}</small>
+      }
+      @if (imageError(); as msg) {
+        <small class="field-error">{{ msg }}</small>
+      }
+    </label>
+
+    @if (errorMsg(); as msg) {
+      <p class="status error">{{ msg }}</p>
+    }
+
+    <div class="actions">
+      <button type="submit" class="primary" [disabled]="submitting()">
+        {{ submitting() ? 'Saving…' : 'Create post' }}
+      </button>
+      <a routerLink="/admin" class="cancel">Cancel</a>
+    </div>
+  </form>
+</section>

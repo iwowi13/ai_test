@@ -1,0 +1,80 @@
+.editor {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+
+  .editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+
+    h1 {
+      margin: 0;
+    }
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    span {
+      font-weight: 600;
+    }
+
+    input,
+    textarea {
+      padding: 0.5rem;
+      font: inherit;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    .field-error {
+      color: #b00020;
+    }
+
+    .field-hint {
+      color: #555;
+    }
+  }
+
+  .status.error {
+    color: #b00020;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  button.primary {
+    background: #1f6feb;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: progress;
+    }
+  }
+
+  .cancel {
+    color: #555;
+  }
+}
