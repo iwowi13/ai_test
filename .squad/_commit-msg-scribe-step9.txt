@@ -1,4 +1,0 @@
-squad: log step 9 + merge auth-endpoints decision
-
-Live orchestration entry + session log for Step 9 (Kaylee, background spawn).
-Merged kaylee-auth-endpoints.md from inbox into decisions.md.
