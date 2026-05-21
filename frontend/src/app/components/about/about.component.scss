@@ -1,3 +1,18 @@
 :host {
   display: block;
 }
+
+.about {
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  line-height: 1.6;
+
+  h1 {
+    margin: 0 0 1rem;
+  }
+
+  p {
+    margin: 0 0 1rem;
+  }
+}
