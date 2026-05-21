@@ -1,0 +1,44 @@
+# Common commands
+
+# --- Database (Postgres via Docker) ---
+docker compose up -d                # start postgres (localhost:5432)
+docker compose ps                   # check status
+docker compose down                 # stop
+docker compose down -v              # stop + wipe volume (drops the db!)
+
+# --- Backend (FastAPI) ---
+# First time only:
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1        # PowerShell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+
+# Run tests (River's gate — must be green before commit):
+cd backend
+.\.venv\Scripts\python.exe -m pytest -q
+
+# Run the API (added in later steps):
+cd backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+
+# --- Frontend (Angular) ---
+# First time only:
+cd frontend
+npm install
+
+# Run tests headless (River's gate — must be green before commit):
+cd frontend
+npx ng test --watch=false --browsers=ChromeHeadless
+
+# Dev server:
+cd frontend
+npx ng serve                        # http://localhost:4200
+
+# Production build:
+cd frontend
+npx ng build
+
+# --- Pre-commit checklist ---
+# 1. cd backend && .\.venv\Scripts\python.exe -m pytest -q
+# 2. cd frontend && npx ng test --watch=false --browsers=ChromeHeadless
+# 3. git status; git add -A; git commit -m "<phase>.<step>: <title>"
