@@ -1,5 +1,8 @@
 <section class="login">
   <h1>Login</h1>
+  @if (justRegistered()) {
+    <div class="form-success" role="status">Account created — please sign in.</div>
+  }
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <label>
       <span>Email</span>
@@ -25,4 +28,5 @@
       {{ submitting() ? 'Signing in…' : 'Sign in' }}
     </button>
   </form>
+  <p class="alt">Don't have an account? <a routerLink="/register">Register</a></p>
 </section>

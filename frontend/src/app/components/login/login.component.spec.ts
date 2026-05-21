@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
 import { AuthService } from '../../services/auth.service';
@@ -12,47 +12,58 @@ interface AuthSpy extends jasmine.SpyObj<AuthService> {
 
 function configure(opts: {
   authSpy: AuthSpy;
-  routerSpy: jasmine.SpyObj<Router>;
   returnUrl?: string | null;
+  registered?: string | null;
 }) {
   const route = {
     snapshot: {
-      queryParamMap: { get: (k: string) => (k === 'returnUrl' ? opts.returnUrl ?? null : null) },
+      queryParamMap: {
+        get: (k: string) => {
+          if (k === 'returnUrl') return opts.returnUrl ?? null;
+          if (k === 'registered') return opts.registered ?? null;
+          return null;
+        },
+      },
     },
   };
   TestBed.configureTestingModule({
     imports: [LoginComponent],
     providers: [
+      provideRouter([]),
       { provide: AuthService, useValue: opts.authSpy },
-      { provide: Router, useValue: opts.routerSpy },
       { provide: ActivatedRoute, useValue: route },
     ],
   });
 }
 
+function spyOnRouter(): jasmine.Spy {
+  const router = TestBed.inject(Router);
+  return spyOn(router, 'navigateByUrl').and.resolveTo(true);
+}
+
 describe('LoginComponent', () => {
   let authSpy: AuthSpy;
-  let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(() => {
     authSpy = jasmine.createSpyObj<AuthService>('AuthService', ['login']) as AuthSpy;
-    routerSpy = jasmine.createSpyObj<Router>('Router', ['navigateByUrl']);
   });
 
   it('does not call AuthService when form is invalid', () => {
-    configure({ authSpy, routerSpy });
+    configure({ authSpy });
+    const navSpy = spyOnRouter();
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
 
     (fixture.componentInstance as unknown as { submit: () => void }).submit();
 
     expect(authSpy.login).not.toHaveBeenCalled();
-    expect(routerSpy.navigateByUrl).not.toHaveBeenCalled();
+    expect(navSpy).not.toHaveBeenCalled();
   });
 
   it('navigates to "/" on successful login when no returnUrl', () => {
     authSpy.login.and.returnValue(of({ access_token: 'tok', token_type: 'bearer' }));
-    configure({ authSpy, routerSpy });
+    configure({ authSpy });
+    const navSpy = spyOnRouter();
 
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
@@ -64,12 +75,13 @@ describe('LoginComponent', () => {
     inst.submit();
 
     expect(authSpy.login).toHaveBeenCalledWith({ email: 'a@b.c', password: 'secret123' });
-    expect(routerSpy.navigateByUrl).toHaveBeenCalledWith('/');
+    expect(navSpy).toHaveBeenCalledWith('/');
   });
 
   it('navigates to the returnUrl query param when present', () => {
     authSpy.login.and.returnValue(of({ access_token: 'tok', token_type: 'bearer' }));
-    configure({ authSpy, routerSpy, returnUrl: '/admin' });
+    configure({ authSpy, returnUrl: '/admin' });
+    const navSpy = spyOnRouter();
 
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
@@ -80,14 +92,15 @@ describe('LoginComponent', () => {
     inst.form.setValue({ email: 'a@b.c', password: 'secret123' });
     inst.submit();
 
-    expect(routerSpy.navigateByUrl).toHaveBeenCalledWith('/admin');
+    expect(navSpy).toHaveBeenCalledWith('/admin');
   });
 
   it('shows "Invalid credentials." on 401', () => {
     authSpy.login.and.returnValue(
       throwError(() => new HttpErrorResponse({ status: 401, statusText: 'Unauthorized' })),
     );
-    configure({ authSpy, routerSpy });
+    configure({ authSpy });
+    const navSpy = spyOnRouter();
 
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
@@ -102,14 +115,15 @@ describe('LoginComponent', () => {
 
     expect(inst.errorMsg()).toBe('Invalid credentials.');
     expect(inst.submitting()).toBeFalse();
-    expect(routerSpy.navigateByUrl).not.toHaveBeenCalled();
+    expect(navSpy).not.toHaveBeenCalled();
   });
 
   it('shows generic error on non-401 failure', () => {
     authSpy.login.and.returnValue(
       throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
     );
-    configure({ authSpy, routerSpy });
+    configure({ authSpy });
+    spyOnRouter();
 
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
@@ -122,5 +136,27 @@ describe('LoginComponent', () => {
     inst.submit();
 
     expect(inst.errorMsg()).toBe('Login failed, try again.');
+  });
+
+  it('shows the success banner when ?registered=1 is present', () => {
+    configure({ authSpy, registered: '1' });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).toContain('Account created');
+    const inst = fixture.componentInstance as unknown as { justRegistered: () => boolean };
+    expect(inst.justRegistered()).toBeTrue();
+  });
+
+  it('does not show the success banner without ?registered=1', () => {
+    configure({ authSpy });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+
+    const text: string = fixture.nativeElement.textContent;
+    expect(text).not.toContain('Account created');
+    const inst = fixture.componentInstance as unknown as { justRegistered: () => boolean };
+    expect(inst.justRegistered()).toBeFalse();
   });
 });
