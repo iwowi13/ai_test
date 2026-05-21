@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
@@ -19,8 +20,16 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="ai_test backend", version="0.1.0")
 
-    # Touch settings so misconfiguration fails at startup, not on first request.
-    _ = settings
+    # CORS: registered BEFORE routers so preflight OPTIONS are handled for
+    # every route. Explicit origin list (not "*") because allow_credentials
+    # is True — Starlette refuses to echo "*" with credentials.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     def health() -> dict[str, bool]:
