@@ -1,0 +1,57 @@
+<section class="editor">
+  <header class="editor-header">
+    <h1>Edit post</h1>
+    <a routerLink="/admin">← Back to admin</a>
+  </header>
+
+  @if (loading()) {
+    <p class="status">Loading…</p>
+  } @else if (notFound()) {
+    <p class="status">Post not found. <a routerLink="/admin">Back to admin</a></p>
+  } @else if (loadError(); as msg) {
+    <p class="status error">{{ msg }}</p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <label class="field">
+        <span>Title</span>
+        <input type="text" formControlName="title" maxlength="200" autocomplete="off" />
+        @if (form.controls.title.touched && form.controls.title.errors?.['required']) {
+          <small class="field-error">Title is required.</small>
+        }
+        @if (form.controls.title.errors?.['maxlength']) {
+          <small class="field-error">Title is too long (200 max).</small>
+        }
+      </label>
+
+      <label class="field">
+        <span>Body</span>
+        <textarea formControlName="body" rows="10"></textarea>
+        @if (form.controls.body.touched && form.controls.body.errors?.['required']) {
+          <small class="field-error">Body is required.</small>
+        }
+      </label>
+
+      <label class="field">
+        <span>Replace image (optional, 5 MB max)</span>
+        <input type="file" accept="image/*" (change)="onFileSelected($event)" />
+        @if (selectedFileName(); as name) {
+          <small class="field-hint">Selected: {{ name }}</small>
+        }
+        @if (imageError(); as msg) {
+          <small class="field-error">{{ msg }}</small>
+        }
+      </label>
+
+      @if (errorMsg(); as msg) {
+        <p class="status error">{{ msg }}</p>
+      }
+
+      <div class="actions">
+        <button type="submit" class="primary" [disabled]="submitting()">
+          {{ submitting() ? 'Saving…' : 'Save changes' }}
+        </button>
+        <button type="button" class="cancel" (click)="cancel()">Cancel</button>
+      </div>
+    </form>
+  }
+</section>
